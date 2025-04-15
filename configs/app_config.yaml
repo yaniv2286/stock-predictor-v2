@@ -1,0 +1,5 @@
+default_model: patchtst
+timeframes: [1d, 1h, 5m]
+include_sentiment: true
+include_patterns: true
+include_fundamentals: false

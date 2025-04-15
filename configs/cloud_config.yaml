@@ -1,0 +1,3 @@
+mode: dev  # options: dev, train, live
+use_gpu: true
+cloud_platform: colab  # or aws, runpod
