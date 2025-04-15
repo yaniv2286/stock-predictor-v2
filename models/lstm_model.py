@@ -1,61 +1,40 @@
 import numpy as np
-import pandas as pd
+import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
-from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.layers import LSTM, Dense
+from sklearn.metrics import mean_squared_error
 
-def prepare_data(X_train, y_train, X_test, timesteps=10):
-    """
-    Reshapes flat features into 3D [samples, timesteps, features] for LSTM.
-    Uses sliding window to create sequences.
-    """
-    def create_sequences(X, y, timesteps):
-        Xs, ys = [], []
-        for i in range(len(X) - timesteps):
-            Xs.append(X.iloc[i:i+timesteps].values)
-            ys.append(y.iloc[i+timesteps])
-        return np.array(Xs), np.array(ys)
+def prepare_data(X_train, y_train, X_test, window_size=10):
+    def reshape(X, y):
+        X_seq, y_seq = [], []
+        for i in range(len(X) - window_size + 1):
+            X_seq.append(X[i:i+window_size].values)
+            y_seq.append(y.iloc[i+window_size-1])
+        return np.array(X_seq), np.array(y_seq)
 
-    X_train_seq, y_train_seq = create_sequences(X_train, y_train, timesteps)
-    X_test_seq, y_test_seq = create_sequences(X_test, y_train[-len(X_test):], timesteps)
-
-    return X_train_seq, y_train_seq, X_test_seq, y_test_seq
+    X_train_seq, y_train_seq = reshape(X_train, y_train)
+    X_test_seq, _ = reshape(X_test, y_train[:len(X_test)])  # dummy target
+    return X_train_seq, y_train_seq, X_test_seq
 
 def build_model(input_shape):
-    """
-    Builds and returns an LSTM model.
-    """
     model = Sequential()
-    model.add(LSTM(64, return_sequences=False, input_shape=input_shape))
-    model.add(Dropout(0.2))
-    model.add(Dense(32, activation='relu'))
+    model.add(LSTM(32, input_shape=input_shape))
     model.add(Dense(1))
     model.compile(optimizer='adam', loss='mse')
     return model
 
-def train_and_predict(X_train, y_train, X_test, model):
-    """
-    Trains the LSTM model and predicts on X_test.
-    """
-    es = EarlyStopping(patience=10, restore_best_weights=True)
-    model.fit(X_train, y_train, epochs=100, batch_size=16, validation_split=0.2, callbacks=[es], verbose=0)
+def train_and_predict(X_train, y_train, X_test, model, epochs=20, batch_size=16):
+    model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
     preds = model.predict(X_test).flatten()
-    return preds
+    rmse = np.sqrt(mean_squared_error(y_train[-len(preds):], preds))
+    return preds, rmse
 
-def predict_future_sequence(model, recent_X, steps=1):
-    """
-    Autoregressive LSTM forecasting (optional).
-    """
-    predictions = []
-    current_input = recent_X.copy()
-
+def predict_future_sequence(model, recent_X_df, steps=1, window_size=10):
+    recent_X = recent_X_df.tail(window_size).values
+    preds = []
     for _ in range(steps):
-        pred = model.predict(current_input.reshape(1, *current_input.shape))[0][0]
-        predictions.append(pred)
-
-        # Shift window
-        new_input = np.append(current_input[1:], [[*current_input[-1]]], axis=0)
-        new_input[-1][-1] = pred
-        current_input = new_input
-
-    return np.array(predictions)
+        input_seq = recent_X.reshape(1, window_size, -1)
+        pred = model.predict(input_seq)[0][0]
+        preds.append(pred)
+        recent_X = np.vstack([recent_X[1:], [recent_X[-1]]])  # rolling window
+    return np.array(preds)

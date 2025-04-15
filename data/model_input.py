@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
+from data.preprocess import build_model_input
 
 def generate_model_input(
     df: pd.DataFrame,

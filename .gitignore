@@ -46,6 +46,7 @@ env/
 *.pth
 *.joblib
 *.sav
+*.zip
 
 # === TensorBoard ===
 logs/
