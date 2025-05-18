@@ -1,8 +1,9 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.layers import LSTM, Dense, Dropout
 from sklearn.metrics import mean_squared_error
+from tensorflow.keras.optimizers import Adam
 
 def prepare_data(X_train, y_train, X_test, window_size=10):
     def reshape(X, y):
@@ -16,11 +17,17 @@ def prepare_data(X_train, y_train, X_test, window_size=10):
     X_test_seq, _ = reshape(X_test, y_train[:len(X_test)])  # dummy target
     return X_train_seq, y_train_seq, X_test_seq
 
-def build_model(input_shape):
+def build_model(input_shape, lstm_units=64, dropout_rate=0.3, learning_rate=0.001):
     model = Sequential()
-    model.add(LSTM(32, input_shape=input_shape))
+    model.add(LSTM(lstm_units, return_sequences=True, input_shape=input_shape))
+    model.add(Dropout(dropout_rate))
+    model.add(LSTM(lstm_units))
+    model.add(Dropout(dropout_rate))
+    model.add(Dense(32, activation='relu'))
     model.add(Dense(1))
-    model.compile(optimizer='adam', loss='mse')
+
+    optimizer = Adam(learning_rate=learning_rate)
+    model.compile(optimizer=optimizer, loss='mse')
     return model
 
 def train_and_predict(X_train, y_train, X_test, model, epochs=20, batch_size=16):
